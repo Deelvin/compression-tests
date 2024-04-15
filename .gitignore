@@ -1,0 +1,4 @@
+./results/
+./model_data/
+__pycache__/
+.cache
