@@ -133,10 +133,18 @@ def fake_quantize(
     return quantized_data
 
 def smooth(
-    original_data: torch.Tensor,
+    original_weights: torch.Tensor,
+    original_activations: torch.Tensor,
+    stats: Statistics,
     alpha: float = 0.5,
 ) -> torch.Tensor:
-    pass
+    assert original_weights.shape[1] == original_activations.T.shape[0]
+
+    scale = torch.max(torch.abs(stats.activations.min_values + stats.activations.max_values)) ** alpha / \
+            torch.max(torch.abs(stats.weights.min_values + stats.weights.max_values)) ** (1 - alpha) 
+
+    return torch.diag(scale)
+
 
 def calculate_error(
     original_weights: torch.Tensor,
