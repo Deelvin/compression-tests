@@ -132,16 +132,6 @@ def fake_quantize(
 
     return quantized_data
 
-
-def dequantize(
-    original_data: torch.Tensor,
-    zp: Union[np.float16, np.int8],
-    scale: np.float16,
-    values_type: str = "weights",
-    granularity: QuantizationGranularity = QuantizationGranularity.PER_TENSOR
-) -> torch.Tensor:
-    pass
-
 def smooth(
     original_data: torch.Tensor,
     alpha: float = 0.5,
@@ -153,7 +143,6 @@ def calculate_error(
     original_activations: torch.Tensor,
     quantized_weights: torch.Tensor,
     quantized_activations: torch.Tensor
-    granularity: QuantizationGranularity = QuantizationGranularity.PER_TENSOR
 ) -> torch.float16:
     diff_tensor = original_weights @ original_activations - quantized_weights @ quantized_activations
     return torch.sqrt(torch.sum(diff_tensor * diff_tensor)).item()

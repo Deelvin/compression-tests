@@ -101,7 +101,6 @@ def plot_distribution(
     # y = np.arange(data.shape[1])
     # X, Y = np.meshgrid(x, y)
     # Z = data.flatten()
-    # print("DEBUG1")
     # # scatter = ax.scatter(X, Y, Z, c=Z, cmap='viridis', marker='.')
     # ls = LightSource(270, 45)
     # rgb = ls.shade(Z, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
@@ -114,7 +113,6 @@ def plot_distribution(
     #     antialiased=False, 
     #     shade=False
     # )
-    # print("DEBUG2")
     # ax.set_xlabel('axis 1')
     # ax.set_ylabel('axis 0')
     # ax.set_zlabel('Frequency')
