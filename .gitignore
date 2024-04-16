@@ -1,4 +1,4 @@
-./results/
-./model_data/
+/results/
+/model_data/
 __pycache__/
 .cache

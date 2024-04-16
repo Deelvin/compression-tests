@@ -40,10 +40,11 @@ def _extract_perchannel_minmax_values(
 ) -> Tuple[List[torch.float16]]:
     assert values_type in ["weights", "activations"]
 
-    dim = 0 if values_type == "weights" else 1
     values = torch.load(path_to_file)
+    if values_type == "activations":
+        values = values.squeeze()
 
-    return torch.min(values, dim).values.tolist(), torch.max(values, dim).values.tolist()
+    return torch.min(values, 0).values.tolist(), torch.max(values, 0).values.tolist()
 
 
 def get_statistics_from_files(path_to_files: str, layer_name: str) -> Statistics:

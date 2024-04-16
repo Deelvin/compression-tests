@@ -129,7 +129,7 @@ def plot_distribution(
 def plot_distributions_comparison(
     original_tensor: torch.Tensor, 
     quantized_tensor: torch.Tensor, 
-    zp: Union[int, float],
+    zp: np.ndarray,
     layer_name: str,
     path_to_save_plot: str,
     values_type: str = "weights"
@@ -153,10 +153,11 @@ def plot_distributions_comparison(
             axs[0].hist(original_channel, bins='auto', color='blue', alpha=0.7, rwidth=0.85, label='Original')
 
             axs[1].hist(quantized_channel, bins='auto', color='red', alpha=0.7, rwidth=0.85, label='Quantized')
+
             axs[1].axvline(x=zp[i], color='black', linestyle='--', label='Zero Point')
             
-            plt.title(f'Original vs Quantized in {} comparison')
+            plt.title(f'Original vs Quantized in {layer_name} comparison')
             plt.legend()
             plt.tight_layout()
-            plt.savefig(os.path.join(path_to_save_plot, f'channel_{i}.png'))
+            plt.savefig(os.path.join(path_to_save_plot, f'{layer_name}_channel_{i}.png'))
             plt.close()

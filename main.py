@@ -9,7 +9,6 @@ from quantization import (
     prepare_quantization_params,
     get_statistics_from_files,
     fake_quantize, 
-    dequantize
 )
 from utils import (
     collect_weights_and_activations, 
