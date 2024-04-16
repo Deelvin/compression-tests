@@ -1,5 +1,8 @@
-from dataclasses import dataclass
+from typing import Optional
 
+from dataclasses import dataclass
+from quantization import QuantizationType, QuantizationGranularity
+from clipping import ClippingStrategy
 
 @dataclass
 class QuantizationScheme:

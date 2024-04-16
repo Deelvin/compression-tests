@@ -1,8 +1,11 @@
 from enum import Enum
 from typing import Callable
+from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
+
+from quantization import Statistics
 
 class ClippingStrategy(ABC):
     def __init__(self, name: str) -> None:

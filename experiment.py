@@ -3,12 +3,14 @@ import os
 import torch
 import numpy
 
+from tqdm import tqdm
+
 from quantization import (
     prepare_quantization_params,
     get_statistics_from_files,
     fake_quantize,
-    QuantizationScheme
 )
+from qschemes import QuantizationScheme
 from utils import plot_distribution, plot_distributions_comparison
 
 class SingleLayerQuantizationExperiment:
@@ -22,7 +24,7 @@ class SingleLayerQuantizationExperiment:
         assert original_weights.shape[1] == original_activations.T.shape[0]
         self.original_weights = original_weights
         self.original_activations = original_activations
-        self.quantization_scheme = quantization_scheme'
+        self.quantization_scheme = quantization_scheme
     
     def quantize(self) -> torch.Tensor:
         pass
@@ -61,16 +63,16 @@ class SingleQuantizationSchemeExperiment:
         self.weights_files = []
         self.activations_files = []
 
-        for filename in os.listdir(path_to_model_data):
-            if filename.startswith(args.model_name):
+        for filename in os.listdir(self.path_to_model_data):
+            if filename.startswith(self.model_name):
                 if filename.endswith("_weights.pt"):
-                    weights_files.append(filename)
+                    self.weights_files.append(filename)
                 else:
-                    activations_files.append(filename)
+                    self.activations_files.append(filename)
 
     def run(self, verbose: bool = True) -> torch.float16:
         disable_tqdm = not verbose
-        for (values_type, files) in zip(["weights", "activations"], [self.weights_files, self.activaions_files]):
+        for (values_type, files) in zip(["weights", "activations"], [self.weights_files, self.activations_files]):
             for data_file in tqdm(files, disable=disable_tqdm, desc=f"Quantizing each Linear layer of {self.model_name}..."):
                 data_path = os.path.join(self.path_to_model_data, data_file)
                 data = torch.load(data_path)

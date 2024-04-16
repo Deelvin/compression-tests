@@ -45,7 +45,7 @@ def run(path_to_model_data: str, path_to_save_results: str, args: argparse.Argum
         model_name=args.model_name,
         path_to_model_data=path_to_model_data,
         path_to_save_results=path_to_save_results,
-        quantization_scheme=qscheme["float8_e4m3_no_smooth_0"],
+        quantization_scheme=qschemes["float8_e4m3_no_smooth_0"],
         dump_quantized=True,
         plot_distributions=True
     ).run(verbose=True)
@@ -54,7 +54,7 @@ def run(path_to_model_data: str, path_to_save_results: str, args: argparse.Argum
         model_name=args.model_name,
         path_to_model_data=path_to_model_data,
         path_to_save_results=path_to_save_results,
-        quantization_scheme=qscheme["float8_e4m3_smooth_0"],
+        quantization_scheme=qschemes["float8_e4m3_smooth_0"],
         dump_quantized=True,
         plot_distributions=True
     ).run(verbose=True)
