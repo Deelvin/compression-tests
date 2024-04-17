@@ -45,9 +45,10 @@ class SingleQuantizationSchemeExperiment:
         model_name: str,
         path_to_model_data: str,
         path_to_save_results: str,
-        quantization_scheme: QuantizationScheme,
+        quantization_scheme: Optional[QuantizationScheme] = None,
         dump_quantized: bool = True,
-        plot_distributions: bool = True
+        plot_distributions: bool = True,
+        artifact_suffix: str = ""
     ) -> None:
 
         self.model_name = model_name
@@ -56,6 +57,7 @@ class SingleQuantizationSchemeExperiment:
         self.dump_quantized = dump_quantized
         self.quantization_scheme = quantization_scheme
         self.plot_distributions = plot_distributions
+        self.artifact_suffix = artifact_suffix
 
         self.path_to_fp16_results = os.path.join(path_to_save_results, "fp16")
         os.makedirs(self.path_to_fp16_results, exist_ok=True)
@@ -73,40 +75,53 @@ class SingleQuantizationSchemeExperiment:
     def run(self, verbose: bool = True) -> torch.float16:
         disable_tqdm = not verbose
         for (values_type, files) in zip(["weights", "activations"], [self.weights_files, self.activations_files]):
-            for data_file in tqdm(files, disable=disable_tqdm, desc=f"Quantizing {values_type} of each Linear layer of {self.model_name}..."):
-                data_path = os.path.join(self.path_to_model_data, data_file)
-                data = torch.load(data_path).squeeze()
-                layer_name = data_file.replace(f'{self.model_name}_', '').replace('.pt', '')
-                plot_distribution(data, self.path_to_fp16_results, layer_name, values_type=values_type)
-
-                for target_dtype in ["float8_e4m3", "float8_e5m2", "int8"]:
-                    path_to_quantized_results = os.path.join(self.path_to_save_results, target_dtype)
-                    os.makedirs(path_to_quantized_results, exist_ok=True)
-                    stats = get_statistics_from_files(self.path_to_model_data, layer_name)
-                    zp, scale = prepare_quantization_params(
-                        stats, 
-                        values_type=values_type,
-                        dtype=target_dtype,
-                    )
-                    quantized_data = fake_quantize(
-                        data, 
-                        zp, scale,
-                        values_type=values_type, 
-                        qtype=target_dtype
-                    )
-                    torch.save(
-                        quantized_data, 
-                        os.path.join(path_to_quantized_results, layer_name) + ".pt"
-                    )
-                    plot_distributions_comparison(
-                        data, 
-                        quantized_data, 
-                        zp,
-                        layer_name,
-                        path_to_quantized_results, 
-                        values_type=values_type
-                    )
-        
+            if self.quantization_scheme:
+                for data_file in tqdm(
+                    files, 
+                    disable=disable_tqdm, 
+                    desc=f"Quantizing {values_type} of each Linear layer of {self.model_name}..."
+                ):
+                    for target_dtype in ["float8_e4m3", "float8_e5m2", "int8"]:
+                        path_to_quantized_results = os.path.join(self.path_to_save_results, target_dtype + self.artifact_suffix)
+                        os.makedirs(path_to_quantized_results, exist_ok=True)
+                        stats = get_statistics_from_files(self.path_to_model_data, layer_name)
+                        zp, scale = prepare_quantization_params(
+                            stats, 
+                            values_type=values_type,
+                            dtype=target_dtype,
+                        )
+                        quantized_data = fake_quantize(
+                            data, 
+                            zp, scale,
+                            values_type=values_type, 
+                            qtype=target_dtype
+                        )
+                        if self.dump_quantized:
+                            torch.save(
+                                quantized_data, 
+                                os.path.join(path_to_quantized_results, layer_name) + ".pt"
+                            )
+                        if self.plot_distributions:
+                            plot_distributions_comparison(
+                                data, 
+                                quantized_data, 
+                                zp,
+                                layer_name,
+                                path_to_quantized_results, 
+                                values_type=values_type
+                            )
+            else:
+                for data_file in tqdm(
+                    files, 
+                    disable=disable_tqdm, 
+                    desc=f"Processing {values_type} of each Linear layer of {self.model_name} inf fp16..."
+                ):
+                    data_path = os.path.join(self.path_to_model_data, data_file)
+                    data = torch.load(data_path).squeeze()
+                    layer_name = data_file.replace(f'{self.model_name}_', '').replace('.pt', '')
+                    if self.plot_distributions:
+                        plot_distribution(data, self.path_to_fp16_results, layer_name, values_type=values_type)
+            
 
         # TODO: plot distribution of quantization errors depending on layer;
         #       calculate total quantization error and return it

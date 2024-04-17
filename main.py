@@ -12,6 +12,8 @@ from utils import (
 from qschemes import qschemes
 from experiment import SingleLayerQuantizationExperiment, SingleQuantizationSchemeExperiment
 
+EPS = 1e-6
+
 def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
     pwd = os.path.dirname(__file__)
     path_to_model_data = os.path.join(pwd, "model_data")
@@ -39,15 +41,25 @@ def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
 
     return path_to_model_data, path_to_save_results
 
-
 def run(path_to_model_data: str, path_to_save_results: str, args: argparse.ArgumentParser) -> None:
+    fp8_e4m3_no_smooth_0_err = SingleQuantizationSchemeExperiment(
+        model_name=args.model_name,
+        path_to_model_data=path_to_model_data,
+        path_to_save_results=path_to_save_results,
+        quantization_scheme=None,
+        plot_distributions=True,
+    ).run(verbose=False)
+
+    assert fp16_err < EPS
+
     fp8_e4m3_no_smooth_0_err = SingleQuantizationSchemeExperiment(
         model_name=args.model_name,
         path_to_model_data=path_to_model_data,
         path_to_save_results=path_to_save_results,
         quantization_scheme=qschemes["float8_e4m3_no_smooth_0"],
         dump_quantized=True,
-        plot_distributions=True
+        plot_distributions=True,
+        artifact_suffix="float8_e4m3_no_smooth_0"
     ).run(verbose=True)
 
     # fp8_e4m3_smooth_0_err = SingleQuantizationSchemeExperiment(

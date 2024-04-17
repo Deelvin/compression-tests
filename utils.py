@@ -72,10 +72,8 @@ def plot_distribution(
     data: torch.Tensor,
     path_to_save_plot: str,
     layer_name: str,
-    which: str = "most_diverse",
     values_type: str = "weights"
 ) -> None:
-    assert which in ["most_diverse", "each"]
     assert values_type in ["weights", "activations"]
 
     os.makedirs(path_to_save_plot, exist_ok=True)

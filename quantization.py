@@ -6,6 +6,8 @@ from enum import Enum
 import numpy as np
 import torch
 
+from utils import _get_tensor_channel
+
 @dataclass
 class QuantizationDTypeBoundaries:
     qmin: Union[int, float]
