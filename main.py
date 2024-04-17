@@ -1,4 +1,4 @@
-from typing import NoReturn, Tuple
+from typing import NoReturn, Tuple, Dict
 import shutil
 import os
 import argparse
@@ -42,34 +42,34 @@ def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
     return path_to_model_data, path_to_save_results
 
 def run(path_to_model_data: str, path_to_save_results: str, args: argparse.ArgumentParser) -> None:
-    fp8_e4m3_no_smooth_0_err = SingleQuantizationSchemeExperiment(
+    fp16_loss = SingleQuantizationSchemeExperiment(
         model_name=args.model_name,
         path_to_model_data=path_to_model_data,
         path_to_save_results=path_to_save_results,
         quantization_scheme=None,
         plot_distributions=True,
-    ).run(verbose=False)
-
-    assert fp16_err < EPS
-
-    fp8_e4m3_no_smooth_0_err = SingleQuantizationSchemeExperiment(
-        model_name=args.model_name,
-        path_to_model_data=path_to_model_data,
-        path_to_save_results=path_to_save_results,
-        quantization_scheme=qschemes["float8_e4m3_no_smooth_0"],
-        dump_quantized=True,
-        plot_distributions=True,
-        artifact_suffix="float8_e4m3_no_smooth_0"
     ).run(verbose=True)
 
-    # fp8_e4m3_smooth_0_err = SingleQuantizationSchemeExperiment(
-    #     model_name=args.model_name,
-    #     path_to_model_data=path_to_model_data,
-    #     path_to_save_results=path_to_save_results,
-    #     quantization_scheme=qschemes["float8_e4m3_smooth_0"],
-    #     dump_quantized=True,
-    #     plot_distributions=True
-    # ).run(verbose=True)
+    assert fp16_loss < EPS
+
+    qschemes_to_test = list(qschemes.keys())
+    print(f"Running experiments with the following quantization schemes: {qschemes_to_test}")
+
+    quantization_loss: Dict[str, float] = {}
+    for experiment_id, scheme in enumerate(qschemes_to_test):
+        print(f"{experiment_id}) {scheme}")
+        cur_scheme_loss = SingleQuantizationSchemeExperiment(
+            model_name=args.model_name,
+            path_to_model_data=path_to_model_data,
+            path_to_save_results=path_to_save_results,
+            quantization_scheme=qschemes[scheme],
+            dump_quantized=True,
+            plot_distributions=True,
+            artifact_suffix=scheme
+        ).run(verbose=True)
+        quantization_loss[scheme] = cur_scheme_loss
+    
+    print(quantization_loss)
 
 
 def clean(path_to_model_data: str, args: argparse.ArgumentParser) -> None:

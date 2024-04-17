@@ -149,7 +149,7 @@ def smooth(
     return torch.diag(scale)
 
 
-def calculate_error(
+def calculate_loss(
     original_weights: torch.Tensor,
     original_activations: torch.Tensor,
     quantized_weights: torch.Tensor,

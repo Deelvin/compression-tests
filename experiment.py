@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import torch
 import numpy
@@ -29,10 +30,10 @@ class SingleLayerQuantizationExperiment:
     def quantize(self) -> torch.Tensor:
         pass
     
-    def calculate_quantization_error(self) -> torch.float16:
+    def calculate_quantization_loss(self) -> torch.float16:
         assert self.quantized_weights and self.quantized_activations, "Use quantize() method first"
 
-        return calculate_error(
+        return calculate_loss(
             self.original_weights, 
             self.original_activations, 
             self.quantized_weights, 
@@ -81,40 +82,42 @@ class SingleQuantizationSchemeExperiment:
                     disable=disable_tqdm, 
                     desc=f"Quantizing {values_type} of each Linear layer of {self.model_name}..."
                 ):
-                    for target_dtype in ["float8_e4m3", "float8_e5m2", "int8"]:
-                        path_to_quantized_results = os.path.join(self.path_to_save_results, target_dtype + self.artifact_suffix)
-                        os.makedirs(path_to_quantized_results, exist_ok=True)
-                        stats = get_statistics_from_files(self.path_to_model_data, layer_name)
-                        zp, scale = prepare_quantization_params(
-                            stats, 
-                            values_type=values_type,
-                            dtype=target_dtype,
+                    data_path = os.path.join(self.path_to_model_data, data_file)
+                    data = torch.load(data_path).squeeze()
+                    layer_name = data_file.replace(f'{self.model_name}_', '').replace('.pt', '')
+                    path_to_quantized_results = os.path.join(self.path_to_save_results, self.quantization_scheme.target_dtype + self.artifact_suffix)
+                    os.makedirs(path_to_quantized_results, exist_ok=True)
+                    stats = get_statistics_from_files(self.path_to_model_data, layer_name)
+                    zp, scale = prepare_quantization_params(
+                        stats, 
+                        values_type=values_type,
+                        dtype=self.quantization_scheme.target_dtype,
+                    )
+                    quantized_data = fake_quantize(
+                        data, 
+                        zp, scale,
+                        values_type=values_type, 
+                        qtype=self.quantization_scheme.target_dtype
+                    )
+                    if self.dump_quantized:
+                        torch.save(
+                            quantized_data, 
+                            os.path.join(path_to_quantized_results, layer_name) + ".pt"
                         )
-                        quantized_data = fake_quantize(
+                    if self.plot_distributions:
+                        plot_distributions_comparison(
                             data, 
-                            zp, scale,
-                            values_type=values_type, 
-                            qtype=target_dtype
+                            quantized_data, 
+                            zp,
+                            layer_name,
+                            path_to_quantized_results, 
+                            values_type=values_type
                         )
-                        if self.dump_quantized:
-                            torch.save(
-                                quantized_data, 
-                                os.path.join(path_to_quantized_results, layer_name) + ".pt"
-                            )
-                        if self.plot_distributions:
-                            plot_distributions_comparison(
-                                data, 
-                                quantized_data, 
-                                zp,
-                                layer_name,
-                                path_to_quantized_results, 
-                                values_type=values_type
-                            )
             else:
                 for data_file in tqdm(
                     files, 
                     disable=disable_tqdm, 
-                    desc=f"Processing {values_type} of each Linear layer of {self.model_name} inf fp16..."
+                    desc=f"Processing {values_type} of each Linear layer of {self.model_name} in fp16..."
                 ):
                     data_path = os.path.join(self.path_to_model_data, data_file)
                     data = torch.load(data_path).squeeze()
@@ -123,6 +126,6 @@ class SingleQuantizationSchemeExperiment:
                         plot_distribution(data, self.path_to_fp16_results, layer_name, values_type=values_type)
             
 
-        # TODO: plot distribution of quantization errors depending on layer;
-        #       calculate total quantization error and return it
-        return None
+        # TODO: plot distribution of quantization losss depending on layer;
+        #       calculate total quantization loss and return it
+        return 0.0
