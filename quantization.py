@@ -109,24 +109,24 @@ def fake_quantize(
 ) -> torch.Tensor:
     if granularity == QuantizationGranularity.PER_TENSOR:
         quantized_data = torch.clamp(
-            original_data / scale + zp,
+            original_data.squeeze() / scale + zp,
             min=dtype_boundaries[qtype].qmin,
             max=dtype_boundaries[qtype].qmax
         )
     else:
         dim = 0 if values_type == "weights" else 1
         quantized_data = torch.zeros(original_data.shape)
-        for channel in range(original.size(dim)):
+        for channel in range(original_data.size(dim)):
             # TODO: rewrite this awful "if-else"
             if dim == 0:
-                quantized_data[channel] = torch.clamp(
-                    original_data[channel] / scale + zp[channel],
+                quantized_data[:, channel] = torch.clamp(
+                    original_data[:, channel] / scale + zp[channel],
                     min=dtype_boundaries[qtype].qmin,
                     max=dtype_boundaries[qtype].qmax
                 )
             else:
-                quantized_data[:, channel] = torch.clamp(
-                    original_data[:, channel] / scale + zp[channel],
+                quantized_data[channel, :] = torch.clamp(
+                    original_data[channel, :] / scale + zp[channel],
                     min=dtype_boundaries[qtype].qmin,
                     max=dtype_boundaries[qtype].qmax
                 )

@@ -50,14 +50,14 @@ def run(path_to_model_data: str, path_to_save_results: str, args: argparse.Argum
         plot_distributions=True
     ).run(verbose=True)
 
-    fp8_e4m3_smooth_0_err = SingleQuantizationSchemeExperiment(
-        model_name=args.model_name,
-        path_to_model_data=path_to_model_data,
-        path_to_save_results=path_to_save_results,
-        quantization_scheme=qschemes["float8_e4m3_smooth_0"],
-        dump_quantized=True,
-        plot_distributions=True
-    ).run(verbose=True)
+    # fp8_e4m3_smooth_0_err = SingleQuantizationSchemeExperiment(
+    #     model_name=args.model_name,
+    #     path_to_model_data=path_to_model_data,
+    #     path_to_save_results=path_to_save_results,
+    #     quantization_scheme=qschemes["float8_e4m3_smooth_0"],
+    #     dump_quantized=True,
+    #     plot_distributions=True
+    # ).run(verbose=True)
 
 
 def clean(path_to_model_data: str, args: argparse.ArgumentParser) -> None:

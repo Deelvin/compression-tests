@@ -73,9 +73,9 @@ class SingleQuantizationSchemeExperiment:
     def run(self, verbose: bool = True) -> torch.float16:
         disable_tqdm = not verbose
         for (values_type, files) in zip(["weights", "activations"], [self.weights_files, self.activations_files]):
-            for data_file in tqdm(files, disable=disable_tqdm, desc=f"Quantizing each Linear layer of {self.model_name}..."):
+            for data_file in tqdm(files, disable=disable_tqdm, desc=f"Quantizing {values_type} of each Linear layer of {self.model_name}..."):
                 data_path = os.path.join(self.path_to_model_data, data_file)
-                data = torch.load(data_path)
+                data = torch.load(data_path).squeeze()
                 layer_name = data_file.replace(f'{self.model_name}_', '').replace('.pt', '')
                 plot_distribution(data, self.path_to_fp16_results, layer_name, values_type=values_type)
 
@@ -104,7 +104,7 @@ class SingleQuantizationSchemeExperiment:
                         zp,
                         layer_name,
                         path_to_quantized_results, 
-                        values_type="weights"
+                        values_type=values_type
                     )
         
 

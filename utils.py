@@ -65,6 +65,9 @@ def collect_weights_and_activations(
             file_name = os.path.join(path_to_save_data, f"{file_prefix}_{name}_{input_str.replace(' ', '_')}_activations.pt")
             torch.save(activation, file_name)
 
+def _get_tensor_channel(tensor: torch.Tensor, channel: int, dim: int) -> torch.Tensor:
+    return tensor[channel, :] if dim == 0 else tensor[:, channel]
+
 def plot_distribution(
     data: torch.Tensor,
     path_to_save_plot: str,
@@ -77,13 +80,15 @@ def plot_distribution(
 
     os.makedirs(path_to_save_plot, exist_ok=True)
 
+    dim = 1 if values_type == "weights" else 0
+
     # 2D per-channel
-    for channel in range(data.size(1)):
+    for channel in range(data.size(dim)):
         # TODO: use --prune parameter value to reduce number of graphs
         if values_type == "weights" and channel % 1024 == 0 or \
            values_type == "activations":
             plt.figure(figsize=(10, 4))
-            channel_values = data[:, channel].squeeze()
+            channel_values = _get_tensor_channel(data, channel, dim)
             plt.hist(channel_values.numpy(), bins=50, color='skyblue', edgecolor='black')
             plt.title(f'{layer_name}, channel {channel} in Layer {layer_name}')
             plt.xlabel('Value')
@@ -135,29 +140,30 @@ def plot_distributions_comparison(
     values_type: str = "weights"
 ) -> None:
     assert values_type in ["weights", "activations"]
-    assert original_tensor.shape == quantized_tensor.shape
+    assert original_tensor.shape == quantized_tensor.shape, f"{original_tensor.shape} vs {quantized_tensor.shape}"
     
-    dim = 1 if values_type == "weights" else 0
-    num_channels = original_tensor.shape[1]
+    dim = 0 if values_type == "weights" else 1
+    num_channels = original_tensor.size(dim)
 
     if not os.path.exists(path_to_save_plot):
         os.makedirs(path_to_save_plot)
     
-    for i in range(num_channels):
-        if i % 1024 == 0:
-            original_channel = original_tensor[:, i].flatten().numpy()
-            quantized_channel = quantized_tensor[:, i].flatten().numpy()
+    for channel in range(num_channels):
+        if channel % 1024 == 0:
+            original_channel = _get_tensor_channel(original_tensor, channel, dim).flatten().numpy()
+            quantized_channel = _get_tensor_channel(quantized_tensor, channel, dim).flatten().numpy()
             
             fig, axs = plt.subplots(2, 1, figsize=(10, 5))
             
+            # TODO: plot unknown number of graphs (to compare different quantization schemas in a single plot)
             axs[0].hist(original_channel, bins='auto', color='blue', alpha=0.7, rwidth=0.85, label='Original')
 
             axs[1].hist(quantized_channel, bins='auto', color='red', alpha=0.7, rwidth=0.85, label='Quantized')
 
-            axs[1].axvline(x=zp[i], color='black', linestyle='--', label='Zero Point')
+            axs[1].axvline(x=zp[channel], color='black', linestyle='--', label='Zero Point')
             
             plt.title(f'Original vs Quantized in {layer_name} comparison')
             plt.legend()
             plt.tight_layout()
-            plt.savefig(os.path.join(path_to_save_plot, f'{layer_name}_channel_{i}.png'))
+            plt.savefig(os.path.join(path_to_save_plot, f'{layer_name}_channel_{channel}.png'))
             plt.close()
