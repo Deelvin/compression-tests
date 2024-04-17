@@ -42,4 +42,31 @@ qschemes = {
         clipping_strategy=None,
         target_dtype="int8"
     ),
+    "float8_e4m3_smooth_0": QuantizationScheme(
+        weights_quantizaion_type=QuantizationType.SYMMETRIC,
+        weights_quantization_granularity=QuantizationGranularity.PER_TENSOR,
+        activations_quantizaion_type=QuantizationType.SYMMETRIC,
+        activations_quantization_granularity=QuantizationGranularity.PER_TENSOR,
+        smooth=False,
+        clipping_strategy=None,
+        target_dtype="float8_e4m3"
+    ),
+    "float8_e5m2_smooth_0": QuantizationScheme(
+        weights_quantizaion_type=QuantizationType.SYMMETRIC,
+        weights_quantization_granularity=QuantizationGranularity.PER_TENSOR,
+        activations_quantizaion_type=QuantizationType.SYMMETRIC,
+        activations_quantization_granularity=QuantizationGranularity.PER_TENSOR,
+        smooth=False,
+        clipping_strategy=None,
+        target_dtype="float8_e5m2"
+    ),
+    "int8_smooth_0": QuantizationScheme(
+        weights_quantizaion_type=QuantizationType.SYMMETRIC,
+        weights_quantization_granularity=QuantizationGranularity.PER_TENSOR,
+        activations_quantizaion_type=QuantizationType.SYMMETRIC,
+        activations_quantization_granularity=QuantizationGranularity.PER_TENSOR,
+        smooth=False,
+        clipping_strategy=None,
+        target_dtype="int8"
+    ),
 }
