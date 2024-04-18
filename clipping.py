@@ -32,9 +32,10 @@ class KLDivergenceClipping(ClippingStrategy):
     ) -> Statistics:
         pass
 
-class PercentileClippingClipping(ClippingStrategy):
+class PercentileClipping(ClippingStrategy):
     def __init__(self, name: str, p: float) -> None:
-        pass
+        self.name = name
+        self.p = p
     
     def optimize_boundaries(
         self, 
@@ -42,7 +43,8 @@ class PercentileClippingClipping(ClippingStrategy):
         activations: torch.Tensor, 
         stat: Statistics
     ) -> Statistics:
-        pass
+        clipped_stat = stat
+        clipped_stat.weights
 
 class LossOptimizationClipping(ClippingStrategy):
     def __init__(self, name: str, objective: Callable) -> None:

@@ -1,4 +1,5 @@
 import os
+import gc
 from typing import Optional
 
 import torch
@@ -12,7 +13,11 @@ from quantization import (
     fake_quantize,
 )
 from qschemes import QuantizationScheme
-from utils import plot_distribution, plot_distributions_comparison
+from utils import (
+    plot_distribution, 
+    plot_distributions_comparison,
+    _find_operand
+)
 
 class SingleLayerQuantizationExperiment:
     def __init__(
@@ -49,7 +54,7 @@ class SingleQuantizationSchemeExperiment:
         quantization_scheme: Optional[QuantizationScheme] = None,
         dump_quantized: bool = True,
         plot_distributions: bool = True,
-        artifact_suffix: str = ""
+        artifact_name: str = ""
     ) -> None:
 
         self.model_name = model_name
@@ -58,7 +63,7 @@ class SingleQuantizationSchemeExperiment:
         self.dump_quantized = dump_quantized
         self.quantization_scheme = quantization_scheme
         self.plot_distributions = plot_distributions
-        self.artifact_suffix = artifact_suffix
+        self.artifact_name = artifact_name
 
         self.path_to_fp16_results = os.path.join(path_to_save_results, "fp16")
         os.makedirs(self.path_to_fp16_results, exist_ok=True)
@@ -75,57 +80,94 @@ class SingleQuantizationSchemeExperiment:
 
     def run(self, verbose: bool = True) -> torch.float16:
         disable_tqdm = not verbose
-        for (values_type, files) in zip(["weights", "activations"], [self.weights_files, self.activations_files]):
-            if self.quantization_scheme:
-                for data_file in tqdm(
-                    files, 
-                    disable=disable_tqdm, 
-                    desc=f"Quantizing {values_type} of each Linear layer of {self.model_name}..."
-                ):
-                    data_path = os.path.join(self.path_to_model_data, data_file)
-                    data = torch.load(data_path).squeeze()
-                    layer_name = data_file.replace(f'{self.model_name}_', '').replace('.pt', '')
-                    path_to_quantized_results = os.path.join(self.path_to_save_results, self.quantization_scheme.target_dtype + self.artifact_suffix)
-                    os.makedirs(path_to_quantized_results, exist_ok=True)
+        if self.quantization_scheme:
+            for rhs_file in tqdm(
+                self.activations_files, 
+                disable=disable_tqdm, 
+                desc=f"Quantizing weights and activations of each Linear layer of {self.model_name}..."
+            ):
+                rhs_path = os.path.join(self.path_to_model_data, rhs_file)
+                rhs = torch.load(rhs_path).squeeze()
+                lhs_path = _find_operand(self.path_to_model_data, rhs_file)
+                lhs_file = lhs_path.split('/')[-1]
+                lhs = torch.load(lhs_path)
+                layer_name = os.path.commonprefix([lhs_file, rhs_file]).replace(f"{self.model_name}_", '')
+                path_to_quantized_results = os.path.join(self.path_to_save_results, self.artifact_name)
+                os.makedirs(path_to_quantized_results, exist_ok=True)
+                stats = get_statistics_from_files(self.path_to_model_data, layer_name)
+                if self.quantization_scheme.smooth:
+                    lhs, rhs = smooth(lhs, rhs, stats)
+                    torch.save(lhs, lhs_path)
+                    torch.save(rhs, rhs_path)
                     stats = get_statistics_from_files(self.path_to_model_data, layer_name)
-                    zp, scale = prepare_quantization_params(
-                        stats, 
-                        values_type=values_type,
-                        dtype=self.quantization_scheme.target_dtype,
+                rhs_zp, rhs_scale = prepare_quantization_params(
+                    stats, 
+                    values_type="activations",
+                    dtype=self.quantization_scheme.target_dtype,
+                )
+                lhs_zp, lhs_scale = prepare_quantization_params(
+                    stats, 
+                    values_type="weights",
+                    dtype=self.quantization_scheme.target_dtype,
+                )
+                quantized_rhs = fake_quantize(
+                    rhs, 
+                    rhs_zp, rhs_scale,
+                    values_type="activations", 
+                    qtype=self.quantization_scheme.target_dtype
+                )
+                quantized_lhs = fake_quantize(
+                    lhs, 
+                    lhs_zp, lhs_scale,
+                    values_type="weights", 
+                    qtype=self.quantization_scheme.target_dtype
+                )
+                if self.dump_quantized:
+                    dump_path = os.path.join(path_to_quantized_results, layer_name)
+                    torch.save(
+                        quantized_rhs, 
+                        dump_path + "_activations.pt"
                     )
-                    quantized_data = fake_quantize(
-                        data, 
-                        zp, scale,
-                        values_type=values_type, 
-                        qtype=self.quantization_scheme.target_dtype
-                    )
-                    if self.dump_quantized:
+                    if not os.path.exists(dump_path + "_weights.pt"):
                         torch.save(
-                            quantized_data, 
-                            os.path.join(path_to_quantized_results, layer_name) + ".pt"
+                            quantized_rhs, 
+                            dump_path + "_weights.pt"
                         )
-                    if self.plot_distributions:
-                        plot_distributions_comparison(
-                            data, 
-                            quantized_data, 
-                            zp,
-                            layer_name,
-                            path_to_quantized_results, 
-                            values_type=values_type
-                        )
-            else:
-                for data_file in tqdm(
-                    files, 
-                    disable=disable_tqdm, 
-                    desc=f"Processing {values_type} of each Linear layer of {self.model_name} in fp16..."
-                ):
-                    data_path = os.path.join(self.path_to_model_data, data_file)
-                    data = torch.load(data_path).squeeze()
-                    layer_name = data_file.replace(f'{self.model_name}_', '').replace('.pt', '')
-                    if self.plot_distributions:
-                        plot_distribution(data, self.path_to_fp16_results, layer_name, values_type=values_type)
-            
+                if self.plot_distributions:
+                    plot_distributions_comparison(
+                        rhs, 
+                        quantized_rhs, 
+                        rhs_zp,
+                        layer_name,
+                        path_to_quantized_results, 
+                        values_type="activations"
+                    )
+                    plot_distributions_comparison(
+                        lhs, 
+                        quantized_lhs, 
+                        lhs_zp,
+                        layer_name,
+                        path_to_quantized_results, 
+                        values_type="weights"
+                    )
+                gc.collect()
+        else:
+            for rhs_file in tqdm(
+                self.activations_files, 
+                disable=disable_tqdm, 
+                desc=f"Processing weigths and activations of each Linear layer of {self.model_name} in fp16..."
+            ):
+                rhs_path = os.path.join(self.path_to_model_data, rhs_file)
+                rhs = torch.load(rhs_path).squeeze()
+                lhs_path = _find_operand(self.path_to_model_data, rhs_file)
+                lhs_file = lhs_path.split('/')[-1]
+                lhs = torch.load(lhs_path)
+                layer_name = os.path.commonprefix([lhs_file, rhs_file]).replace(f"{self.model_name}_", '')
+                if self.plot_distributions:
+                    plot_distribution(rhs, self.path_to_fp16_results, layer_name, values_type="activations")
+                    plot_distribution(lhs, self.path_to_fp16_results, layer_name, values_type="weights")
+                gc.collect()
 
-        # TODO: plot distribution of quantization losss depending on layer;
+        # TODO: plot distribution of quantization loss depending on layer;
         #       calculate total quantization loss and return it
         return 0.0

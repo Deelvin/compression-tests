@@ -48,7 +48,7 @@ def collect_weights_and_activations(
             if filter_layers in name:
                 if current_count == 0:
                     module.register_forward_hook(get_activation(f"{name}"))
-                    file_name = os.path.join(path_to_save_data, f"{file_prefix}_{name}_{i}")
+                    file_name = os.path.join(path_to_save_data, f"{file_prefix}_{name}")
                     torch.save(module.weight.data, f"{file_name}_weights.pt")
                 current_count = (current_count + 1) % count_limit
                 
@@ -68,6 +68,15 @@ def collect_weights_and_activations(
 def _get_tensor_channel(tensor: torch.Tensor, channel: int, dim: int) -> torch.Tensor:
     return tensor[channel, :] if dim == 0 else tensor[:, channel]
 
+def _find_operand(path_to_model_data: str, first_operand_file: str) -> str:
+    for filename in os.listdir(path_to_model_data):
+        prefix = os.path.commonprefix([filename, first_operand_file])
+        if ("model.layers" in prefix or "lm_head" in prefix) and filename != first_operand_file \
+        and (filename.endswith("activations.pt") and first_operand_file.endswith("weights.pt") or \
+        first_operand_file.endswith("activations.pt") and filename.endswith("weights.pt")):
+            return os.path.join(path_to_model_data, filename)
+    raise FileNotFoundError(f"No operand found for matmul with {first_operand_file}")
+
 def plot_distribution(
     data: torch.Tensor,
     path_to_save_plot: str,
@@ -78,20 +87,19 @@ def plot_distribution(
 
     os.makedirs(path_to_save_plot, exist_ok=True)
 
-    dim = 1 if values_type == "weights" else 0
-
+    dim = 0 if values_type == "weights" else 0
     # 2D per-channel
     for channel in range(data.size(dim)):
         # TODO: use --prune parameter value to reduce number of graphs
         if values_type == "weights" and channel % 1024 == 0 or \
            values_type == "activations":
             plt.figure(figsize=(10, 4))
-            channel_values = _get_tensor_channel(data, channel, dim)
+            channel_values = _get_tensor_channel(data, channel, dim).squeeze()
             plt.hist(channel_values.numpy(), bins=50, color='skyblue', edgecolor='black')
             plt.title(f'{layer_name}, channel {channel} in Layer {layer_name}')
             plt.xlabel('Value')
             plt.ylabel('Frequency')
-            plot_file_name = f'histogram_layer_{layer_name}_channel_{channel}.png'
+            plot_file_name = f'histogram_layer_{layer_name}_{values_type}_channel_{channel}.png'
             plot_file_path = os.path.join(path_to_save_plot, plot_file_name)
             plt.savefig(plot_file_path)
             plt.close()

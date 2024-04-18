@@ -92,6 +92,7 @@ def prepare_quantization_params(
             np.abs(max_values), np.abs(min_values)
         ) / dtype_boundaries[dtype].qmax
         zp = np.zeros_like(scale, dtype=zp_dtype)
+        print(scale.shape, zp.shape)
     else:
         scale = np.array([
             (np.max(max_values) - np.min(min_values)) / 
@@ -110,6 +111,7 @@ def fake_quantize(
     granularity: QuantizationGranularity = QuantizationGranularity.PER_TENSOR
 ) -> torch.Tensor:
     if granularity == QuantizationGranularity.PER_TENSOR:
+        # print(original_data.shape, scale.shape, zp.shape)
         quantized_data = torch.clamp(
             original_data.squeeze() / scale + zp,
             min=dtype_boundaries[qtype].qmin,
@@ -140,13 +142,19 @@ def smooth(
     original_activations: torch.Tensor,
     stats: Statistics,
     alpha: float = 0.5,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     assert original_weights.shape[1] == original_activations.T.shape[0]
 
-    scale = torch.max(torch.abs(stats.activations.min_values + stats.activations.max_values)) ** alpha / \
+    scale_coef = torch.max(torch.abs(stats.activations.min_values + stats.activations.max_values)) ** alpha / \
             torch.max(torch.abs(stats.weights.min_values + stats.weights.max_values)) ** (1 - alpha) 
+    scale_matrix = torch.diag(scale_coef)
 
-    return torch.diag(scale)
+    smoothed_weights = original_weights @ torch.linalg.inv(scale_matrix)
+    smoothed_activaions = scale_matrix @ original_activations
+    assert smoothed_weights.shape == original_weights.shape and \
+           smoothed_activaions.shape == original_activations.shape
+
+    return smoothed_weights, smoothed_activaions
 
 
 def calculate_loss(

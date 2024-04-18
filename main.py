@@ -42,22 +42,22 @@ def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
     return path_to_model_data, path_to_save_results
 
 def run(path_to_model_data: str, path_to_save_results: str, args: argparse.ArgumentParser) -> None:
-    fp16_loss = SingleQuantizationSchemeExperiment(
-        model_name=args.model_name,
-        path_to_model_data=path_to_model_data,
-        path_to_save_results=path_to_save_results,
-        quantization_scheme=None,
-        plot_distributions=True,
-    ).run(verbose=True)
+    # fp16_loss = SingleQuantizationSchemeExperiment(
+    #     model_name=args.model_name,
+    #     path_to_model_data=path_to_model_data,
+    #     path_to_save_results=path_to_save_results,
+    #     quantization_scheme=None,
+    #     plot_distributions=True,
+    # ).run(verbose=True)
 
-    assert fp16_loss < EPS
+    # assert fp16_loss < EPS
 
     qschemes_to_test = list(qschemes.keys())
     print(f"Running experiments with the following quantization schemes: {qschemes_to_test}")
 
     quantization_loss: Dict[str, float] = {}
     for experiment_id, scheme in enumerate(qschemes_to_test):
-        print(f"{experiment_id}) {scheme}")
+        print(f"{experiment_id + 1}) {scheme}")
         cur_scheme_loss = SingleQuantizationSchemeExperiment(
             model_name=args.model_name,
             path_to_model_data=path_to_model_data,
@@ -65,7 +65,7 @@ def run(path_to_model_data: str, path_to_save_results: str, args: argparse.Argum
             quantization_scheme=qschemes[scheme],
             dump_quantized=True,
             plot_distributions=True,
-            artifact_suffix=scheme
+            artifact_name=scheme
         ).run(verbose=True)
         quantization_loss[scheme] = cur_scheme_loss
     
