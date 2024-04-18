@@ -5,23 +5,21 @@ import argparse
 
 import torch
 
-from utils import (
-    collect_weights_and_activations,
-    DUMMY_DATASET
-)
+from utils import collect_weights_and_activations, DUMMY_DATASET
 from qschemes import qschemes
 from experiment import SingleLayerQuantizationExperiment, SingleQuantizationSchemeExperiment
 
 EPS = 1e-6
+
 
 def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
     pwd = os.path.dirname(__file__)
     path_to_model_data = os.path.join(pwd, "model_data")
     path_to_save_results = os.path.join(pwd, "results")
 
-    if args.model_path.endswith('/'):
+    if args.model_path.endswith("/"):
         args.model_path = args.model_path[:-1]
-    args.model_name = args.model_path.split('/')[-1]
+    args.model_name = args.model_path.split("/")[-1]
 
     os.makedirs(path_to_model_data, exist_ok=args.use_cached)
     os.makedirs(path_to_save_results, exist_ok=True)
@@ -29,11 +27,11 @@ def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
     if not args.use_cached:
         try:
             collect_weights_and_activations(
-                args.model_path, 
-                path_to_model_data, 
+                args.model_path,
+                path_to_model_data,
                 file_prefix=args.model_name,
                 prune_ratio=args.prune_ratio,
-                filter_layers=args.filter_layers
+                filter_layers=args.filter_layers,
             )
         except Exception as exc:
             shutil.rmtree(path_to_model_data)
@@ -41,16 +39,17 @@ def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
 
     return path_to_model_data, path_to_save_results
 
-def run(path_to_model_data: str, path_to_save_results: str, args: argparse.ArgumentParser) -> None:
-    # fp16_loss = SingleQuantizationSchemeExperiment(
-    #     model_name=args.model_name,
-    #     path_to_model_data=path_to_model_data,
-    #     path_to_save_results=path_to_save_results,
-    #     quantization_scheme=None,
-    #     plot_distributions=True,
-    # ).run(verbose=True)
 
-    # assert fp16_loss < EPS
+def run(path_to_model_data: str, path_to_save_results: str, args: argparse.ArgumentParser) -> None:
+    fp16_loss = SingleQuantizationSchemeExperiment(
+        model_name=args.model_name,
+        path_to_model_data=path_to_model_data,
+        path_to_save_results=path_to_save_results,
+        quantization_scheme=None,
+        plot_distributions=True,
+    ).run(verbose=True)
+
+    assert fp16_loss < EPS
 
     qschemes_to_test = list(qschemes.keys())
     print(f"Running experiments with the following quantization schemes: {qschemes_to_test}")
@@ -65,15 +64,16 @@ def run(path_to_model_data: str, path_to_save_results: str, args: argparse.Argum
             quantization_scheme=qschemes[scheme],
             dump_quantized=True,
             plot_distributions=True,
-            artifact_name=scheme
+            artifact_name=scheme,
         ).run(verbose=True)
         quantization_loss[scheme] = cur_scheme_loss
-    
+
     print(quantization_loss)
 
 
 def clean(path_to_model_data: str, args: argparse.ArgumentParser) -> None:
     pass
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -92,8 +92,9 @@ def main() -> None:
 
     if args.clean:
         clean(data_dir, args)
-    
+
     print("Done")
+
 
 if __name__ == "__main__":
     main()
