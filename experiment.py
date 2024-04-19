@@ -96,10 +96,15 @@ class SingleQuantizationSchemeExperiment:
                 os.makedirs(path_to_quantized_results, exist_ok=True)
                 stats = get_statistics_from_files(self.path_to_model_data, layer_name)
                 if self.quantization_scheme.smooth:
+                    original_lhs, original_rhs = lhs.copy(), rhs.copy()
                     lhs, rhs = smooth(lhs, rhs, stats)
-                    torch.save(lhs, lhs_path)
-                    torch.save(rhs, rhs_path)
+                    torch.save(lhs, lhs_path), torch.save(rhs, rhs_path)
                     stats = get_statistics_from_files(self.path_to_model_data, layer_name)
+                if self.quantization_scheme.clipping_strategy:
+                    for values_type in ["activations", "weights"]:
+                        stats = self.quantization_scheme.clipping_strategy.optimize_boundaries(
+                            values_type, stats
+                        )
                 rhs_zp, rhs_scale = prepare_quantization_params(
                     stats, 
                     values_type="activations",
@@ -150,6 +155,8 @@ class SingleQuantizationSchemeExperiment:
                         path_to_quantized_results, 
                         values_type="weights"
                     )
+                if self.quantization_scheme.smooth:
+                    torch.save(original_lhs, lhs_path), torch.save(original_rhs, rhs_path)
                 gc.collect()
         else:
             for rhs_file in tqdm(
