@@ -200,5 +200,5 @@ def plot_distributions_comparison(
             plt.title(f"Original vs Quantized in {layer_name} comparison")
             plt.legend()
             plt.tight_layout()
-            plt.savefig(os.path.join(path_to_save_plot, f"{layer_name}_channel_{channel}.png"))
+            plt.savefig(os.path.join(path_to_save_plot, f"{layer_name}_{values_type}_channel_{channel}.png"))
             plt.close()

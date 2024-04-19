@@ -13,9 +13,8 @@ class ClippingStrategy(ABC):
 
     @abstractmethod
     def optimize_boundaries(
-        self, 
-        weights: torch.Tensor, 
-        activations: torch.Tensor, 
+        self,
+        values_type: str,
         stat: Statistics
     ) -> Statistics:
         ...
@@ -25,9 +24,8 @@ class KLDivergenceClipping(ClippingStrategy):
         pass
     
     def optimize_boundaries(
-        self, 
-        weights: torch.Tensor, 
-        activations: torch.Tensor, 
+        self,
+        values_type: str,
         stat: Statistics
     ) -> Statistics:
         pass
@@ -38,22 +36,26 @@ class PercentileClipping(ClippingStrategy):
         self.p = p
     
     def optimize_boundaries(
-        self, 
-        weights: torch.Tensor, 
-        activations: torch.Tensor, 
+        self,
+        values_type: str,
         stat: Statistics
     ) -> Statistics:
         clipped_stat = stat
-        clipped_stat.weights
+        updated_chosen_stat = getattr(clipped_stat, values_type)
+        for channel in range(len(updated_chosen_stat.min_vlaues)):
+            updated_chosen_stat.min_values = np.percentile(updated_chosen_stat.min_values, self.p)
+            updated_chosen_stat.max_values = np.percentile(updated_chosen_stat.max_values, self.p)
+        setattr(clipped_stat, values_type, updated_chosen_stat)
+
+        return clipped_stat
 
 class LossOptimizationClipping(ClippingStrategy):
     def __init__(self, name: str, objective: Callable) -> None:
         pass
     
     def optimize_boundaries(
-        self, 
-        weights: torch.Tensor, 
-        activations: torch.Tensor, 
+        self,
+        values_type: str,
         stat: Statistics
     ) -> Statistics:
         pass
