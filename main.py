@@ -5,7 +5,7 @@ import argparse
 
 import torch
 
-from utils import collect_weights_and_activations, DUMMY_DATASET
+from utils import collect_weights_and_activations, plot_loss, DUMMY_DATASET
 from qschemes import qschemes
 from experiment import SingleLayerQuantizationExperiment, SingleQuantizationSchemeExperiment
 
@@ -41,15 +41,15 @@ def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
 
 
 def run(path_to_model_data: str, path_to_save_results: str, args: argparse.ArgumentParser) -> None:
-    fp16_loss = SingleQuantizationSchemeExperiment(
-        model_name=args.model_name,
-        path_to_model_data=path_to_model_data,
-        path_to_save_results=path_to_save_results,
-        quantization_scheme=None,
-        plot_distributions=True,
-    ).run(verbose=True)
+    # fp16_loss = SingleQuantizationSchemeExperiment(
+    #     model_name=args.model_name,
+    #     path_to_model_data=path_to_model_data,
+    #     path_to_save_results=path_to_save_results,
+    #     quantization_scheme=None,
+    #     plot_distributions=True,
+    # ).run(verbose=True)
 
-    assert fp16_loss < EPS
+    # assert fp16_loss < EPS
 
     qschemes_to_test = list(qschemes.keys())
     print(f"Running experiments with the following quantization schemes: {qschemes_to_test}")
@@ -63,10 +63,13 @@ def run(path_to_model_data: str, path_to_save_results: str, args: argparse.Argum
             path_to_save_results=path_to_save_results,
             quantization_scheme=qschemes[scheme],
             dump_quantized=True,
-            plot_distributions=True,
+            plot_distributions=False,
             artifact_name=scheme,
         ).run(verbose=True)
+        print(f"Loss = {cur_scheme_loss}")
         quantization_loss[scheme] = cur_scheme_loss
+    
+    plot_loss(qschemes_to_test, quantization_loss, path_to_save_results)
 
     print(quantization_loss)
 

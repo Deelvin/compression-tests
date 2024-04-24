@@ -133,6 +133,8 @@ def fake_quantize(
     qtype: str = "fp8_e4m3",
     granularity: QuantizationGranularity = QuantizationGranularity.PER_TENSOR,
 ) -> torch.Tensor:
+    scale = torch.tensor(scale).to("cuda")
+    zp = torch.tensor(zp).to("cuda")
     if granularity == QuantizationGranularity.PER_TENSOR:
         if values_type == "weights":
             data = original_data.T
@@ -170,17 +172,20 @@ def smooth(
     stats: Statistics,
     alpha: float = 0.5,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    assert original_weights.shape[1] == original_activations.T.shape[0]
+    assert original_weights.shape[0] == original_activations.shape[1]
 
     scale_coef = torch.max(
-        torch.abs(stats.activations.min_values + stats.activations.max_values)
-    ) ** alpha / torch.max(torch.abs(stats.weights.min_values + stats.weights.max_values)) ** (
+        torch.abs(torch.Tensor(stats.activations.min_values + stats.activations.max_values))
+    ) ** alpha / torch.max(torch.abs(torch.Tensor(stats.weights.min_values + stats.weights.max_values))) ** (
         1 - alpha
     )
-    scale_matrix = torch.diag(scale_coef)
 
-    smoothed_weights = original_weights @ torch.linalg.inv(scale_matrix)
-    smoothed_activaions = scale_matrix @ original_activations
+    if scale_coef.shape == torch.Size([]):
+        scale_coef = torch.Tensor([scale_coef.item() for _ in range(original_weights.shape[0])])
+    scale_matrix = torch.diag(torch.Tensor(scale_coef)).to("cuda")
+
+    smoothed_weights = (original_weights.T @ scale_matrix).T
+    smoothed_activaions = (torch.linalg.inv(scale_matrix) @ original_activations.T).T
     assert (
         smoothed_weights.shape == original_weights.shape
         and smoothed_activaions.shape == original_activations.shape
@@ -190,12 +195,12 @@ def smooth(
 
 
 def calculate_loss(
-    original_weights: torch.Tensor,
     original_activations: torch.Tensor,
-    quantized_weights: torch.Tensor,
+    original_weights: torch.Tensor,
     quantized_activations: torch.Tensor,
+    quantized_weights: torch.Tensor,
 ) -> torch.float16:
     diff_tensor = (
-        original_weights @ original_activations - quantized_weights @ quantized_activations
+        original_activations @ original_weights - quantized_activations @ quantized_weights
     )
     return torch.sqrt(torch.sum(diff_tensor * diff_tensor)).item()

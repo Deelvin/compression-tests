@@ -3,7 +3,7 @@ import gc
 from typing import Optional
 
 import torch
-import numpy
+import numpy as np
 
 from tqdm import tqdm
 
@@ -11,6 +11,8 @@ from quantization import (
     prepare_quantization_params,
     get_statistics_from_files,
     fake_quantize,
+    calculate_loss,
+    smooth
 )
 from qschemes import QuantizationScheme
 from utils import (
@@ -77,6 +79,8 @@ class SingleQuantizationSchemeExperiment:
                     self.weights_files.append(filename)
                 else:
                     self.activations_files.append(filename)
+        
+        self.per_layer_loss = []
 
     def run(self, verbose: bool = True) -> torch.float16:
         disable_tqdm = not verbose
@@ -87,16 +91,16 @@ class SingleQuantizationSchemeExperiment:
                 desc=f"Quantizing weights and activations of each Linear layer of {self.model_name}..."
             ):
                 rhs_path = os.path.join(self.path_to_model_data, rhs_file)
-                rhs = torch.load(rhs_path).squeeze()
+                rhs = torch.load(rhs_path).squeeze().to("cuda")
                 lhs_path = _find_operand(self.path_to_model_data, rhs_file)
                 lhs_file = lhs_path.split('/')[-1]
-                lhs = torch.load(lhs_path)
+                lhs = torch.load(lhs_path).to("cuda")
                 layer_name = os.path.commonprefix([lhs_file, rhs_file]).replace(f"{self.model_name}_", '')
                 path_to_quantized_results = os.path.join(self.path_to_save_results, self.artifact_name)
                 os.makedirs(path_to_quantized_results, exist_ok=True)
                 stats = get_statistics_from_files(self.path_to_model_data, layer_name)
                 if self.quantization_scheme.smooth:
-                    original_lhs, original_rhs = lhs.copy(), rhs.copy()
+                    original_lhs, original_rhs = torch.clone(lhs), torch.clone(rhs)
                     lhs, rhs = smooth(lhs, rhs, stats)
                     torch.save(lhs, lhs_path), torch.save(rhs, rhs_path)
                     stats = get_statistics_from_files(self.path_to_model_data, layer_name)
@@ -110,11 +114,14 @@ class SingleQuantizationSchemeExperiment:
                     values_type="activations",
                     dtype=self.quantization_scheme.target_dtype,
                 )
+                # TODO: add scale optimization for activations
                 lhs_zp, lhs_scale = prepare_quantization_params(
                     stats, 
                     values_type="weights",
                     dtype=self.quantization_scheme.target_dtype,
                 )
+                if self.quantization_scheme.scale_optimization is not None:
+                    lhs_scale = self.quantization_scheme.scale_optimization.optimize_scale(lhs)
                 quantized_rhs = fake_quantize(
                     rhs, 
                     rhs_zp, rhs_scale,
@@ -157,6 +164,9 @@ class SingleQuantizationSchemeExperiment:
                     )
                 if self.quantization_scheme.smooth:
                     torch.save(original_lhs, lhs_path), torch.save(original_rhs, rhs_path)
+                self.per_layer_loss.append(calculate_loss(
+                    rhs, lhs, quantized_rhs, quantized_lhs
+                ))
                 gc.collect()
         else:
             for rhs_file in tqdm(
@@ -170,11 +180,14 @@ class SingleQuantizationSchemeExperiment:
                 lhs_file = lhs_path.split('/')[-1]
                 lhs = torch.load(lhs_path)
                 layer_name = os.path.commonprefix([lhs_file, rhs_file]).replace(f"{self.model_name}_", '')
+                sample = rhs_file.replace(os.path.commonprefix([lhs_file, rhs_file]), "").replace(f"{self.model_name}_", "").replace(f"_activations.pt", "")
                 if self.plot_distributions:
-                    plot_distribution(rhs, self.path_to_fp16_results, layer_name, values_type="activations")
+                    plot_distribution(rhs, self.path_to_fp16_results, layer_name, values_type="activations", sample=sample)
                     plot_distribution(lhs, self.path_to_fp16_results, layer_name, values_type="weights")
+                self.per_layer_loss.append(calculate_loss(
+                    rhs, lhs, rhs, lhs
+                ))
                 gc.collect()
 
         # TODO: plot distribution of quantization loss depending on layer;
-        #       calculate total quantization loss and return it
-        return 0.0
+        return np.sum(self.per_layer_loss)

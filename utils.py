@@ -1,5 +1,5 @@
 import os
-from typing import Union
+from typing import Union, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,7 +39,7 @@ def collect_weights_and_activations(
 
     def get_activation(name):
         def hook(model, input, output):
-            activations[name] = output.detach()
+            activations[name] = input.detach()
 
         return hook
 
@@ -92,7 +92,7 @@ def _find_operand(path_to_model_data: str, first_operand_file: str) -> str:
 
 
 def plot_distribution(
-    data: torch.Tensor, path_to_save_plot: str, layer_name: str, values_type: str = "weights"
+    data: torch.Tensor, path_to_save_plot: str, layer_name: str, values_type: str = "weights", sample: str = None
 ) -> None:
     assert values_type in ["weights", "activations"]
 
@@ -109,7 +109,7 @@ def plot_distribution(
             plt.title(f"{layer_name}, channel {channel} in Layer {layer_name}")
             plt.xlabel("Value")
             plt.ylabel("Frequency")
-            plot_file_name = f"histogram_layer_{layer_name}_{values_type}_channel_{channel}.png"
+            plot_file_name = f"histogram_layer_{layer_name}_{values_type}_{sample if sample is not None else ''}_channel_{channel}.png"
             plot_file_path = os.path.join(path_to_save_plot, plot_file_name)
             plt.savefig(plot_file_path)
             plt.close()
@@ -154,7 +154,7 @@ def plot_distributions_comparison(
     zp: np.ndarray,
     layer_name: str,
     path_to_save_plot: str,
-    values_type: str = "weights",
+    values_type: str = "weights"
 ) -> None:
     assert values_type in ["weights", "activations"]
     assert (
@@ -202,3 +202,11 @@ def plot_distributions_comparison(
             plt.tight_layout()
             plt.savefig(os.path.join(path_to_save_plot, f"{layer_name}_{values_type}_channel_{channel}.png"))
             plt.close()
+
+def plot_loss(qschemes: List[str], losses: List[np.float16], path_to_save_plot) -> None:
+    plt.bar(qschemes, losses)
+    plt.title(f"Loss of different quantization schemes")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(path_to_save_plot, "loss.png"))
+    plt.close()
