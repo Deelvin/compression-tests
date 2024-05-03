@@ -64,7 +64,7 @@ class PercentileClipping(ClippingStrategy):
         return clipped_stat
 
 class LossOptimizationClipping(ClippingStrategy):
-    def __init__(self, name: str, objective: Callable) -> None:
+    def __init__(self, name: str, loss_func: Callable) -> None:
         pass
     
     def optimize_boundaries(
@@ -102,15 +102,16 @@ class GridScaleOptimizaion(ScaleOptimizationStrategy):
         tensor: torch.Tensor,
     ) -> List[np.float16]:
         def _calculate_loss(tensor_fp32: torch.Tensor, scale: np.float32) -> np.float32:
-            tensor_fp8 = (tensor_fp32 * scale).cpu().detach().numpy().astype(dtype=self.quantization_dtype)
-            tensor_fp32_after_fp8 = tensor_fp8.astype(dtype=np.float32) / scale
+            tensor_fp8 = (tensor_fp32 / scale).astype(dtype=self.quantization_dtype)
+            tensor_fp32_after_fp8 = tensor_fp8.astype(dtype=np.float32) * scale
 
-            return np.sum(np.abs(tensor_fp32.cpu().detach().numpy() - tensor_fp32_after_fp8))
+            return np.sum(np.abs(tensor_fp32 - tensor_fp32_after_fp8))
 
-        # scale_grid = np.linspace(0.01, dtype_boundaries[self.quantization_scheme].qmax / torch.min(torch.abs(tensor)).item(), 10)
-        scale_grid = np.linspace(0.01, 10, 1)
+        tensor = tensor.cpu().detach().numpy()
+        scale_grid = np.linspace(0.01, 10, 15)
         losses = []
         for scale in scale_grid:
             losses.append(_calculate_loss(tensor, scale))
         # TODO: extend to all quantization schemes
+        tensor = torch.Tensor(tensor).to("cuda")
         return torch.tensor(scale_grid[np.argmin(losses)]).to("cuda")

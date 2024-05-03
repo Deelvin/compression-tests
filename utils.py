@@ -1,5 +1,5 @@
 import os
-from typing import Union, List
+from typing import Union, List, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,14 +38,14 @@ def collect_weights_and_activations(
     activations = {}
 
     def get_activation(name):
-        def hook(model, input, output):
-            activations[name] = input.detach()
+        def hook(model, inputs, outputs):
+            activations[name] = inputs.detach()
 
         return hook
 
     count_limit = int(1 / (1 - prune_ratio))
     current_count = 0
-    for i, (name, module) in tqdm(enumerate(model.named_modules()), desc="Collecting weights"):
+    for _, (name, module) in tqdm(enumerate(model.named_modules()), desc="Collecting weights"):
         if isinstance(module, torch.nn.Linear):
             if filter_layers in name:
                 if current_count == 0:
@@ -71,7 +71,8 @@ def collect_weights_and_activations(
 
 
 def _get_tensor_channel(tensor: torch.Tensor, channel: int, dim: int) -> torch.Tensor:
-    return tensor[channel, :] if dim == 0 else tensor[:, channel]
+    values = tensor[channel, :] if dim == 0 else tensor[:, channel]
+    return values.cpu().detach().numpy()
 
 
 def _find_operand(path_to_model_data: str, first_operand_file: str) -> str:
@@ -92,8 +93,16 @@ def _find_operand(path_to_model_data: str, first_operand_file: str) -> str:
 
 
 def plot_distribution(
-    data: torch.Tensor, path_to_save_plot: str, layer_name: str, values_type: str = "weights", sample: str = None
+    data: torch.Tensor,
+    path_to_save_plot: str,
+    layer_name: str,
+    values_type: str = "weights",
+    sample: str = None,
 ) -> None:
+    """,
+    Plot per-channel distribution histograms
+    for both weights and activations
+    """
     assert values_type in ["weights", "activations"]
 
     os.makedirs(path_to_save_plot, exist_ok=True)
@@ -101,11 +110,10 @@ def plot_distribution(
     dim = 1 if values_type == "weights" else 0
     # 2D per-channel
     for channel in range(data.size(dim)):
-        # TODO: use --prune parameter value to reduce number of graphs
         if values_type == "weights" and channel % 1024 == 0 or values_type == "activations":
             plt.figure(figsize=(10, 4))
             channel_values = _get_tensor_channel(data, channel, dim).squeeze()
-            plt.hist(channel_values.numpy(), bins=50, color="skyblue", edgecolor="black")
+            plt.hist(channel_values, bins=50, color="skyblue", edgecolor="black")
             plt.title(f"{layer_name}, channel {channel} in Layer {layer_name}")
             plt.xlabel("Value")
             plt.ylabel("Frequency")
@@ -114,39 +122,6 @@ def plot_distribution(
             plt.savefig(plot_file_path)
             plt.close()
 
-    # TODO: Fix 3d plots
-    # 3D for the whole tensor
-    # fig = plt.figure(figsize=(10, 8))
-    # ax = fig.add_subplot(111, projection='3d')
-    # x = np.arange(data.shape[0])
-    # y = np.arange(data.shape[1])
-    # X, Y = np.meshgrid(x, y)
-    # Z = data.flatten()
-    # # scatter = ax.scatter(X, Y, Z, c=Z, cmap='viridis', marker='.')
-    # ls = LightSource(270, 45)
-    # rgb = ls.shade(Z, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
-    # surf = ax.plot_surface(
-    #     X, Y, Z,
-    #     rstride=1,
-    #     cstride=1,
-    #     facecolors=rgb,
-    #     linewidth=0,
-    #     antialiased=False,
-    #     shade=False
-    # )
-    # ax.set_xlabel('axis 1')
-    # ax.set_ylabel('axis 0')
-    # ax.set_zlabel('Frequency')
-    # ax.set_title(f'3D Histogram of data in Layer {layer_name}')
-    # ax.view_init(elev=20, azim=-60)
-    # print("DEBUG3")
-    # fig.colorbar(scatter, label='Value')
-
-    # plot_file_name = f'3d_histogram_layer_{layer_name}.png'
-    # plot_file_path = os.path.join(path_to_save_plot, plot_file_name)
-    # plt.savefig(plot_file_path)
-    # plt.close()
-
 
 def plot_distributions_comparison(
     original_tensor: torch.Tensor,
@@ -154,8 +129,13 @@ def plot_distributions_comparison(
     zp: np.ndarray,
     layer_name: str,
     path_to_save_plot: str,
-    values_type: str = "weights"
+    values_type: str = "weights",
 ) -> None:
+    """
+    Plot distributions of original and
+    quantized values to compare and validate
+    their similarity
+    """
     assert values_type in ["weights", "activations"]
     assert (
         original_tensor.shape == quantized_tensor.shape
@@ -176,7 +156,6 @@ def plot_distributions_comparison(
 
             fig, axs = plt.subplots(2, 1, figsize=(10, 5))
 
-            # TODO: plot unknown number of graphs (to compare different quantization schemas in a single plot)
             axs[0].hist(
                 original_channel,
                 bins="auto",
@@ -200,12 +179,21 @@ def plot_distributions_comparison(
             plt.title(f"Original vs Quantized in {layer_name} comparison")
             plt.legend()
             plt.tight_layout()
-            plt.savefig(os.path.join(path_to_save_plot, f"{layer_name}_{values_type}_channel_{channel}.png"))
+            plt.savefig(
+                os.path.join(path_to_save_plot, f"{layer_name}_{values_type}_channel_{channel}.png")
+            )
             plt.close()
 
-def plot_loss(qschemes: List[str], losses: List[np.float16], path_to_save_plot) -> None:
-    plt.bar(qschemes, losses)
-    plt.title(f"Loss of different quantization schemes")
+
+def plot_loss(losses: Dict[str, np.float16], path_to_save_plot) -> None:
+    """
+    Barplot to compare loss value of different
+    quantization schemes
+    """
+    plt.figure(figsize=(8, 12))
+    plt.bar(*zip(*losses.items()))
+    plt.title("Loss of different quantization schemes")
+    plt.xticks(rotation=60, ha="right")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(path_to_save_plot, "loss.png"))

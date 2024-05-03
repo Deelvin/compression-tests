@@ -113,12 +113,13 @@ def prepare_quantization_params(
             )
         zp = np.zeros_like(scale)
     else:
+        assert granularity == QuantizationGranularity.PER_CHANNEL
         scale = np.array(
             [
-                (np.max(max_values) - np.min(min_values))
-                / (dtype_boundaries[dtype].qmax - dtype_boundaries[dtype].qmin)
+                np.maximum(np.max(np.abs(max_values[channel])), np.max(np.abs(min_values[channel])))
+                / dtype_boundaries[dtype].qmax
+                for channel in range(max_values.shape[0])
             ]
-            * len(getattr(statistics, values_type).max_values)
         )
         zp = -np.round(np.min(min_values) / scale) + dtype_boundaries[dtype].qmin
 
@@ -149,8 +150,7 @@ def fake_quantize(
         dim = 0 if values_type == "weights" else 1
         quantized_data = torch.zeros(original_data.shape)
         for channel in range(original_data.size(dim)):
-            # TODO: rewrite this awful "if-else"
-            if dim == 0:
+            if values_type == "weights":
                 quantized_data[:, channel] = torch.clamp(
                     original_data[:, channel] / scale + zp[channel],
                     min=dtype_boundaries[qtype].qmin,
@@ -176,7 +176,9 @@ def smooth(
 
     scale_coef = torch.max(
         torch.abs(torch.Tensor(stats.activations.min_values + stats.activations.max_values))
-    ) ** alpha / torch.max(torch.abs(torch.Tensor(stats.weights.min_values + stats.weights.max_values))) ** (
+    ) ** alpha / torch.max(
+        torch.abs(torch.Tensor(stats.weights.min_values + stats.weights.max_values))
+    ) ** (
         1 - alpha
     )
 

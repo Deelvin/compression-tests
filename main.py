@@ -1,18 +1,20 @@
-from typing import NoReturn, Tuple, Dict
+from typing import Tuple, Dict
 import shutil
 import os
 import argparse
 
-import torch
-
-from utils import collect_weights_and_activations, plot_loss, DUMMY_DATASET
+from utils import collect_weights_and_activations, plot_loss
 from qschemes import qschemes
-from experiment import SingleLayerQuantizationExperiment, SingleQuantizationSchemeExperiment
+from experiment import SingleQuantizationSchemeExperiment
 
 EPS = 1e-6
 
 
 def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
+    """
+    Prepare directories to store temporal
+    files, results and artifacts
+    """
     pwd = os.path.dirname(__file__)
     path_to_model_data = os.path.join(pwd, "model_data")
     path_to_save_results = os.path.join(pwd, "results")
@@ -41,17 +43,18 @@ def prepare(args: argparse.ArgumentParser) -> Tuple[str, str]:
 
 
 def run(path_to_model_data: str, path_to_save_results: str, args: argparse.ArgumentParser) -> None:
-    # fp16_loss = SingleQuantizationSchemeExperiment(
-    #     model_name=args.model_name,
-    #     path_to_model_data=path_to_model_data,
-    #     path_to_save_results=path_to_save_results,
-    #     quantization_scheme=None,
-    #     plot_distributions=True,
-    # ).run(verbose=True)
+    # Fp16 values analysis
+    fp16_loss = SingleQuantizationSchemeExperiment(
+        model_name=args.model_name,
+        path_to_model_data=path_to_model_data,
+        path_to_save_results=path_to_save_results,
+        quantization_scheme=None,
+        plot_distributions=True,
+    ).run(verbose=True)
 
-    # assert fp16_loss < EPS
+    assert fp16_loss < EPS
 
-    qschemes_to_test = list(qschemes.keys())
+    qschemes_to_test = list(qschemes.keys())[::-1]
     print(f"Running experiments with the following quantization schemes: {qschemes_to_test}")
 
     quantization_loss: Dict[str, float] = {}
@@ -68,14 +71,10 @@ def run(path_to_model_data: str, path_to_save_results: str, args: argparse.Argum
         ).run(verbose=True)
         print(f"Loss = {cur_scheme_loss}")
         quantization_loss[scheme] = cur_scheme_loss
-    
-    plot_loss(qschemes_to_test, quantization_loss, path_to_save_results)
+
+    plot_loss(quantization_loss, path_to_save_results)
 
     print(quantization_loss)
-
-
-def clean(path_to_model_data: str, args: argparse.ArgumentParser) -> None:
-    pass
 
 
 def main() -> None:
@@ -92,9 +91,6 @@ def main() -> None:
     model_data_dir, results_dir = prepare(args)
 
     run(model_data_dir, results_dir, args)
-
-    if args.clean:
-        clean(data_dir, args)
 
     print("Done")
 
